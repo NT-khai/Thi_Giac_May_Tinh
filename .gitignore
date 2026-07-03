@@ -1,0 +1,19 @@
+# Bỏ qua thư mục môi trường ảo
+venv/
+
+# Bỏ qua file biên dịch Python
+__pycache__/
+*.pyc
+
+# Bỏ qua file mô hình lớn
+models/
+*.task
+
+# Bỏ qua file ảnh, kết quả chạy thử
+*.png
+*.jpg
+*.jpeg
+
+# Bỏ qua file log hoặc tạm
+*.log
+*.tmp
