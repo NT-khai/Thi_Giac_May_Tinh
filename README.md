@@ -28,7 +28,7 @@ Xem file [`MUC_TIEU_BAO_CAO.md`](MUC_TIEU_BAO_CAO.md).
 ## Cài đặt
 
 ```bash
-cd CUOIKI
+cd Thi_Giac_May_Tinh
 python -m venv venv
 venv\Scripts\activate        # Windows
 pip install -r requirements.txt
