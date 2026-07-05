@@ -38,8 +38,8 @@ DEFAULT_ROI = (160, 80, 480, 360)
 DEFAULT_GAUSSIAN_KERNEL = 5
 DEFAULT_BRIGHTNESS = 10
 DEFAULT_CONTRAST = 1.2
-DEFAULT_CANNY_LOW = 50
-DEFAULT_CANNY_HIGH = 150
+DEFAULT_CANNY_LOW = 80
+DEFAULT_CANNY_HIGH = 240
 DEFAULT_BINARY_THRESHOLD = 127
 DEFAULT_MORPH_KERNEL = 5
 DEFAULT_MIN_CONFIDENCE = 0.5
@@ -59,29 +59,30 @@ def _landmark_score(lm):
     return 1.0
 
 
-def draw_pose_skeleton(frame, pose_landmarks, frame_w, frame_h):
+def draw_pose_skeleton(frame, all_pose_landmarks, frame_w, frame_h):
     """
     Ch.5 — Vẽ khung xương MediaPipe (giống 87_human_action_reg.png).
     """
     output = frame.copy()
-    if not pose_landmarks:
+    if not all_pose_landmarks:
         return output
 
-    pts = []
-    for lm in pose_landmarks:
-        px = int(lm.x * frame_w)
-        py = int(lm.y * frame_h)
-        pts.append((px, py))
+    for pose_landmarks in all_pose_landmarks:
+        pts = []
+        for lm in pose_landmarks:
+            px = int(lm.x * frame_w)
+            py = int(lm.y * frame_h)
+            pts.append((px, py))
 
-    # Vẽ các đoạn nối
-    for conn in POSE_CONNECTIONS:
-        i, j = conn.start, conn.end
-        if i < len(pts) and j < len(pts):
-            cv2.line(output, pts[i], pts[j], (255, 100, 0), 3)
+        # Vẽ các đoạn nối
+        for conn in POSE_CONNECTIONS:
+            i, j = conn.start, conn.end
+            if i < len(pts) and j < len(pts):
+                cv2.line(output, pts[i], pts[j], (255, 100, 0), 3)
 
-    # Vẽ điểm khớp
-    for px, py in pts:
-        cv2.circle(output, (px, py), 4, (0, 255, 255), -1)
+        # Vẽ điểm khớp
+        for px, py in pts:
+            cv2.circle(output, (px, py), 4, (0, 255, 255), -1)
 
     return output
 
@@ -120,7 +121,7 @@ class IntrusionPoseDetector:
         options = PoseLandmarkerOptions(
             base_options=base_options_lib.BaseOptions(model_asset_path=model_path),
             running_mode=running_mode_lib.VisionTaskRunningMode.VIDEO,
-            num_poses=1,
+            num_poses=5,  # Cho phep nhan dien toi da 5 nguoi cung luc
             min_pose_detection_confidence=min_confidence,
             min_pose_presence_confidence=min_confidence,
             min_tracking_confidence=min_confidence,
@@ -225,25 +226,26 @@ class IntrusionPoseDetector:
         self._video_timestamp_ms += 33  # ~30 fps
         return self.pose_landmarker.detect_for_video(mp_image, self._video_timestamp_ms)
 
-    def get_first_pose(self, pose_result):
-        """Lấy danh sách landmark của pose đầu tiên (nếu có)."""
+    def get_all_poses(self, pose_result):
+        """Lấy danh sách landmark của tất cả các pose."""
         if pose_result and pose_result.pose_landmarks:
-            return pose_result.pose_landmarks[0]
-        return None
+            return pose_result.pose_landmarks
+        return []
 
-    def count_landmarks_in_roi(self, pose_landmarks, frame_w, frame_h):
+    def count_landmarks_in_roi(self, all_pose_landmarks, frame_w, frame_h):
         """Ch.5 — Đếm điểm khớp tin cậy cao nằm trong ROI."""
-        if not pose_landmarks:
+        if not all_pose_landmarks:
             return 0, []
 
         x, y, w, h = self.roi
         in_roi = []
-        for lm in pose_landmarks:
-            if _landmark_score(lm) < self.min_confidence:
-                continue
-            px, py = int(lm.x * frame_w), int(lm.y * frame_h)
-            if x <= px <= x + w and y <= py <= y + h:
-                in_roi.append((px, py))
+        for pose_landmarks in all_pose_landmarks:
+            for lm in pose_landmarks:
+                if _landmark_score(lm) < self.min_confidence:
+                    continue
+                px, py = int(lm.x * frame_w), int(lm.y * frame_h)
+                if x <= px <= x + w and y <= py <= y + h:
+                    in_roi.append((px, py))
         return len(in_roi), in_roi
 
     # =========================================================================
@@ -266,8 +268,8 @@ class IntrusionPoseDetector:
         contour, contour_area, has_motion = self.extract_contours(clean_mask)
 
         pose_result = self.detect_pose(denoised)
-        pose_landmarks = self.get_first_pose(pose_result)
-        num_in_roi, roi_landmarks = self.count_landmarks_in_roi(pose_landmarks, w, h)
+        all_pose_landmarks = self.get_all_poses(pose_result)
+        num_in_roi, roi_landmarks = self.count_landmarks_in_roi(all_pose_landmarks, w, h)
 
         intrusion = num_in_roi >= MIN_LANDMARKS_IN_ROI
 
@@ -279,7 +281,7 @@ class IntrusionPoseDetector:
             "contour": contour,
             "contour_area": contour_area,
             "has_motion": has_motion,
-            "pose_landmarks": pose_landmarks,
+            "pose_landmarks": all_pose_landmarks,
             "num_landmarks_in_roi": num_in_roi,
             "roi_landmarks": roi_landmarks,
             "intrusion": intrusion,
@@ -489,6 +491,7 @@ def run_webcam(args):
             final = draw_final_result(result, roi, w, h)
             panels = make_display_panels(result, final, roi)
 
+            cv2.imshow("0. Anh goc", frame)
             cv2.imshow("1. Sau loc nhieu (Ch.2)", panels[0])
             cv2.imshow("2. Canny + Hough (Ch.3)", panels[1])
             cv2.imshow("3. Mat na phan doan (Ch.4)", panels[2])
