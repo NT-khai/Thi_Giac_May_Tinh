@@ -9,6 +9,14 @@ __pycache__/
 models/
 *.task
 
+# Bỏ qua file hình ảnh
+output/
+*.png
+
+sweep_results/
+*
+
+
 # Bỏ qua file ảnh, kết quả chạy thử
 *.png
 *.jpg
