@@ -128,16 +128,16 @@ CUOIKI/
 
 ---
 
-## Xử lý lỗi
+## Hiệu chỉnh tham số
 
-| Vấn đề                                 | Cách khắc phục                                     |
-| -------------------------------------- | -------------------------------------------------- |
-| Không mở webcam                        | `--camera 1`, kiểm tra quyền camera                |
-| `mediapipe has no attribute solutions` | Đã sửa — dùng Tasks API; chạy lại `python main.py` |
-| Không thấy khung xương                 | Đứng xa hơn, đủ ánh sáng, hạ `--confidence 0.3`    |
-| Lỗi tải model                          | Chạy `python download_model.py` thủ công           |
-| Canny quá nhiễu                        | Tăng `--canny-low`, tăng `--gaussian-kernel`       |
-| Cảnh báo sai                           | Tăng `--confidence`, chỉnh ROI nhỏ hơn             |
+- **Sử dụng phím số**
+  - 1 - Hiệu chỉnh Gaussian
+  - 2 - Canny Low
+  - 3 - Canny High
+  - 4 - Confidence
+- **Tăng Giảm tham số**
+  - '-' : Tăng giá trị tham số
+  - '+' : Giảm giá trị tham số
 
 ---
 
