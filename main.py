@@ -17,6 +17,7 @@ import argparse
 import os
 import time
 from datetime import datetime
+from collections import deque
 
 import cv2
 import numpy as np
@@ -273,6 +274,14 @@ class IntrusionPoseDetector:
 
         intrusion = num_in_roi >= MIN_LANDMARKS_IN_ROI
 
+        total_conf = 0
+        num_lms = 0
+        for pose_landmarks in all_pose_landmarks:
+            for lm in pose_landmarks:
+                total_conf += _landmark_score(lm)
+                num_lms += 1
+        mean_conf = (total_conf / num_lms) if num_lms > 0 else 0.0
+
         return {
             "original": original,
             "denoised": denoised,
@@ -285,6 +294,7 @@ class IntrusionPoseDetector:
             "num_landmarks_in_roi": num_in_roi,
             "roi_landmarks": roi_landmarks,
             "intrusion": intrusion,
+            "mean_conf": mean_conf,
         }
 
     def set_confidence(self, new_conf):
@@ -462,6 +472,35 @@ def run_calibration(cap, detector, total_frames):
     return True
 
 
+class MetricsTracker:
+    def __init__(self, window_size=60):
+        self.history_conf = deque(maxlen=window_size)
+        self.history_motion = deque(maxlen=window_size)
+        self.history_pose = deque(maxlen=window_size)
+        
+    def update(self, mean_conf, has_motion, has_pose):
+        if mean_conf > 0:
+            self.history_conf.append(mean_conf)
+            
+        self.history_motion.append(has_motion)
+        self.history_pose.append(has_pose)
+        
+    def get_metrics(self):
+        avg_conf = sum(self.history_conf) / len(self.history_conf) if self.history_conf else 0.0
+        
+        correct = 0
+        total = len(self.history_motion)
+        if total > 0:
+            for m, p in zip(self.history_motion, self.history_pose):
+                if m == p:
+                    correct += 1
+            accuracy = (correct / total) * 100
+        else:
+            accuracy = 0.0
+            
+        return avg_conf, accuracy
+
+
 def run_webcam(args):
     cap = cv2.VideoCapture(args.camera)
     if not cap.isOpened():
@@ -497,6 +536,7 @@ def run_webcam(args):
     print("=" * 65)
 
     active_param = 1
+    metrics = MetricsTracker(window_size=60)
 
     try:
         while True:
@@ -507,6 +547,10 @@ def run_webcam(args):
             h, w = frame.shape[:2]
             result = detector.process_frame(frame)
             final = draw_final_result(result, roi, w, h)
+            
+            has_pose = len(result["pose_landmarks"]) > 0
+            metrics.update(result["mean_conf"], result["has_motion"], has_pose)
+            avg_conf, accuracy = metrics.get_metrics()
 
             info_text = [
                 f"1. Gaussian: {detector.gaussian_kernel}" + (" <--" if active_param == 1 else ""),
@@ -517,6 +561,9 @@ def run_webcam(args):
             for i, text in enumerate(info_text):
                 color = (0, 255, 255) if (i + 1) == active_param else (255, 255, 255)
                 cv2.putText(final, text, (10, 150 + i * 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+                
+            cv2.putText(final, f"Accuracy (Proxy): {accuracy:.1f}%", (10, 290), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+            cv2.putText(final, f"Mean Conf: {avg_conf:.2f}", (10, 320), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
             panels = make_display_panels(result, final, roi)
 
