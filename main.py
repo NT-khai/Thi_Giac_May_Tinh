@@ -287,6 +287,21 @@ class IntrusionPoseDetector:
             "intrusion": intrusion,
         }
 
+    def set_confidence(self, new_conf):
+        self.min_confidence = new_conf
+        self.pose_landmarker.close()
+        
+        model_path = ensure_pose_model()
+        options = PoseLandmarkerOptions(
+            base_options=base_options_lib.BaseOptions(model_asset_path=model_path),
+            running_mode=running_mode_lib.VisionTaskRunningMode.VIDEO,
+            num_poses=5,
+            min_pose_detection_confidence=self.min_confidence,
+            min_pose_presence_confidence=self.min_confidence,
+            min_tracking_confidence=self.min_confidence,
+        )
+        self.pose_landmarker = PoseLandmarker.create_from_options(options)
+
     def reset_background(self):
         """Reset MOG2 và timestamp video."""
         self.bg_subtractor = cv2.createBackgroundSubtractorMOG2(
@@ -477,8 +492,11 @@ def run_webcam(args):
         return
 
     print("Phim tat: q=Thoat | s=Luu anh | r=Hoc lai nen")
+    print("Phim tat: 1=Kernel, 2=CannyLow, 3=CannyHigh, 4=Confidence | +/-=Dieu chinh")
     print(f"ROI: x={roi[0]}, y={roi[1]}, w={roi[2]}, h={roi[3]}")
     print("=" * 65)
+
+    active_param = 1
 
     try:
         while True:
@@ -489,6 +507,17 @@ def run_webcam(args):
             h, w = frame.shape[:2]
             result = detector.process_frame(frame)
             final = draw_final_result(result, roi, w, h)
+
+            info_text = [
+                f"1. Gaussian: {detector.gaussian_kernel}" + (" <--" if active_param == 1 else ""),
+                f"2. Canny Low: {detector.canny_low}" + (" <--" if active_param == 2 else ""),
+                f"3. Canny High: {detector.canny_high}" + (" <--" if active_param == 3 else ""),
+                f"4. Confidence: {detector.min_confidence:.2f}" + (" <--" if active_param == 4 else "")
+            ]
+            for i, text in enumerate(info_text):
+                color = (0, 255, 255) if (i + 1) == active_param else (255, 255, 255)
+                cv2.putText(final, text, (10, 150 + i * 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+
             panels = make_display_panels(result, final, roi)
 
             cv2.imshow("0. Anh goc", frame)
@@ -500,6 +529,32 @@ def run_webcam(args):
             key = cv2.waitKey(1) & 0xFF
             if key == ord("q"):
                 break
+            elif key == ord("1"): active_param = 1
+            elif key == ord("2"): active_param = 2
+            elif key == ord("3"): active_param = 3
+            elif key == ord("4"): active_param = 4
+            elif key == ord("+") or key == ord("="):
+                if active_param == 1:
+                    detector.gaussian_kernel += 2
+                elif active_param == 2:
+                    detector.canny_low = min(255, detector.canny_low + 10)
+                elif active_param == 3:
+                    detector.canny_high = min(255, detector.canny_high + 10)
+                elif active_param == 4:
+                    new_conf = min(1.0, detector.min_confidence + 0.1)
+                    if abs(new_conf - detector.min_confidence) > 0.01:
+                        detector.set_confidence(new_conf)
+            elif key == ord("-") or key == ord("_"):
+                if active_param == 1:
+                    detector.gaussian_kernel = max(1, detector.gaussian_kernel - 2)
+                elif active_param == 2:
+                    detector.canny_low = max(0, detector.canny_low - 10)
+                elif active_param == 3:
+                    detector.canny_high = max(0, detector.canny_high - 10)
+                elif active_param == 4:
+                    new_conf = max(0.0, detector.min_confidence - 0.1)
+                    if abs(new_conf - detector.min_confidence) > 0.01:
+                        detector.set_confidence(new_conf)
             elif key == ord("s"):
                 paths = save_snapshot(panels, args.output_dir)
                 print("Da luu:")
