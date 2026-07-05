@@ -35,14 +35,14 @@ from mediapipe.tasks.python.vision.core import vision_task_running_mode as runni
 # Cấu hình mặc định
 # =============================================================================
 DEFAULT_ROI = (160, 80, 480, 360)
-DEFAULT_GAUSSIAN_KERNEL = 5
-DEFAULT_BRIGHTNESS = 10
+DEFAULT_GAUSSIAN_KERNEL = 3 # 21 - 5 - 3
+DEFAULT_BRIGHTNESS = 10 
 DEFAULT_CONTRAST = 1.2
-DEFAULT_CANNY_LOW = 80
+DEFAULT_CANNY_LOW = 80 # 10-30 50-150 80-240
 DEFAULT_CANNY_HIGH = 240
 DEFAULT_BINARY_THRESHOLD = 127
 DEFAULT_MORPH_KERNEL = 5
-DEFAULT_MIN_CONFIDENCE = 0.5
+DEFAULT_MIN_CONFIDENCE = 0.8 # 0.1 - 0.5 - 0.8
 DEFAULT_CALIBRATION_FRAMES = 90       # ~3 giây @ 30fps — học nền trước khi hiện ROI
 MIN_CONTOUR_AREA = 600
 MIN_LANDMARKS_IN_ROI = 3
