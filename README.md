@@ -90,6 +90,9 @@ Sử dụng công cụ này để tạo bảng so sánh định lượng phục 
 # Khảo sát 3 mức ngưỡng Canny (Ch.3)
 python parameter_sweep.py --type canny --values 30 50 80
 
+# Khảo sát 3 mức độ tin cậy MediaPipe (Ch.5)
+python parameter_sweep.py --type confidence --values 0.3 0.5 0.7
+
 # Chạy mặc định
 python parameter_sweep.py
 ```
