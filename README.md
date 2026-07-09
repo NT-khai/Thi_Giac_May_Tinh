@@ -1,146 +1,125 @@
-# Hệ thống Giám sát Xâm nhập Vùng Cấm — Khung xương MediaPipe
+# Hệ thống Giám sát Xâm nhập Vùng Cấm — Pipeline Thị giác Máy tính
 
-Bài tập lớn **Thị giác máy tính** — Phát hiện người xâm nhập vùng cấm (ROI) qua Webcam, vẽ khung xương giống `87_human_action_reg.png`.
-
-> Pipeline **minh bạch**: các kỹ thuật Ch.2–4 chạy **trước** model MediaPipe Pose (Ch.5), thể hiện hiểu biết bản chất xử lý ảnh — không chỉ "gọi API".
-
----
-
-## Phát biểu Mục tiêu (dán vào báo cáo)
-
-Xem file [`MUC_TIEU_BAO_CAO.md`](MUC_TIEU_BAO_CAO.md).
+**Trường Đại học Giao thông Vận tải TP. Hồ Chí Minh**
+Học phần: Xử lý hình ảnh và thị giác máy tính (Mã HP: 121036)
+Giảng viên hướng dẫn: Võ Thượng Anh
+Nhóm thực hiện: Nhóm A
 
 ---
 
-## Pipeline đầy đủ
+## 1. Giới thiệu Đề tài
 
-| Giai đoạn      | Chương   | Kỹ thuật                                    | Cửa sổ hiển thị      |
-| -------------- | -------- | ------------------------------------------- | -------------------- |
-| Tiền xử lý     | **Ch.2** | Toán tử điểm (α, β), Gaussian Blur, cắt ROI | (1) Sau lọc nhiễu    |
-| Phát hiện biên | **Ch.3** | Canny Edge + Hough Lines                    | (2) Canny + Hough    |
-| Phân đoạn      | **Ch.4** | MOG2 + Contours + Morphology                | (3) Mặt nạ phân đoạn |
-| Nhận dạng      | **Ch.5** | MediaPipe Pose → khung xương                | (4) Kết quả cuối     |
+Dự án tập trung xây dựng một hệ thống giám sát an ninh thời gian thực giúp phát hiện người xâm nhập vào vùng quan tâm (ROI) xác định qua webcam. Hệ thống không chỉ là một "hộp đen" nhận diện mà triển khai một pipeline minh bạch, kết hợp các kỹ thuật xử lý ảnh truyền thống làm tiền đề cho mô hình học sâu MediaPipe Pose.
 
-**Logic cảnh báo:** Nếu ≥ 3 điểm khớp khung xương (landmark) nằm trong ROI → khung **Xanh → Đỏ** + hiển thị cảnh báo.
+### Pipeline 4 giai đoạn xử lý
+
+| Giai đoạn  | Chương | Kỹ thuật                                                                |
+| ---------- | ------ | ----------------------------------------------------------------------- |
+| Tiền xử lý | Ch.2   | Toán tử điểm, Lọc Gaussian, Cắt vùng ROI                                |
+| Đặc trưng  | Ch.3   | Canny Edge Detection và Hough Lines                                     |
+| Phân đoạn  | Ch.4   | Trừ nền MOG2, Phép toán hình thái học và Contours                       |
+| Nhận dạng  | Ch.5   | Trích xuất và vẽ khung xương người hình cây với 33 điểm mốc (landmarks) |
 
 ---
 
-## Cài đặt
+## 2. Hướng dẫn Cài đặt
+
+### Bước 1: Clone Project và chuẩn bị môi trường
 
 ```bash
+# Clone dự án từ repository
+git clone https://github.com/NT-khai/Thi_Giac_May_Tinh.git
 cd Thi_Giac_May_Tinh
+
+# Tạo môi trường ảo (khuyến nghị)
 python -m venv venv
-venv\Scripts\activate        # Windows
-pip install -r requirements.txt
+venv/bin/activate
+
+# Hũy chạy máy ảo
+deactivateg
 ```
 
-### Thoát env
+### Bước 2: Cài đặt thư viện
+
+Dự án sử dụng các thư viện CV tiêu chuẩn:
 
 ```bash
-deactivate
+pip install opencv-python numpy mediapipe matplotlib scikit-image
 ```
 
-Thư viện: `opencv-python`, `numpy`, `scikit-image`, `matplotlib`, `mediapipe`.
+### Bước 3: Tải Model nhận dạng
+
+Trước khi khởi động lần đầu, hãy chạy script sau để tải model `pose_landmarker_lite.task` từ Google:
+
+```bash
+python download_model.py
+```
 
 ---
 
-## Cách chạy
+## 3. Hướng dẫn Sử dụng
 
-### Giám sát realtime (4 cửa sổ)
+### 3.1. Chạy giám sát thời gian thực
+
+Chạy pipeline chính để bắt đầu giám sát qua webcam:
 
 ```bash
+python main.py --camera 0 --roi 160 80 480 360 --gaussian-kernel 5 --confidence 0.5
+
+# Chạy mặc định
 python main.py
 ```
 
-**Giai đoạn khởi động:** Camera tự **học nền 90 khung hình (~3 giây)** trước khi hiện ROI. Hãy đứng yên, không bước vào vùng giám sát.
+**Giai đoạn Học nền (Calibration):** Hệ thống sẽ đếm 90 khung hình đầu tiên (~3 giây) để thuật toán MOG2 học nền tĩnh. Lưu ý: đứng yên và không đi vào vùng giám sát trong giai đoạn này.
 
-| Phím | Chức năng                                    |
-| ---- | -------------------------------------------- |
-| `q`  | Thoát                                        |
-| `s`  | Lưu 4 ảnh minh họa vào `output/`             |
-| `r`  | Học lại nền (chạy lại giai đoạn calibration) |
+**Điều khiển và Tương tác:**
 
-**Tham số tùy chỉnh:**
+| Phím      | Chức năng                                                                                       |
+| --------- | ----------------------------------------------------------------------------------------------- |
+| `q`       | Thoát chương trình                                                                              |
+| `s`       | Lưu 4 ảnh minh họa trung gian (Lọc nhiễu, Canny, Phân đoạn, Kết quả cuối) vào thư mục `output/` |
+| `r`       | Thực hiện học lại nền (Reset Calibration)                                                       |
+| `1` – `4` | Chọn tham số để chỉnh (1: Gaussian, 2: Canny Low, 3: Canny High, 4: Confidence)                 |
+| `+` / `-` | Tăng hoặc giảm giá trị tham số đang chọn trực tiếp                                              |
 
-```bash
-python main.py --roi 160 80 480 360 --canny-low 50 --canny-high 150 --confidence 0.5
-```
+### 3.2. Công cụ Khảo sát tham số (Parameter Sweep)
 
-| Tham số                | Mặc định         | Chương | Mô tả                               |
-| ---------------------- | ---------------- | ------ | ----------------------------------- |
-| `--roi X Y W H`        | `160 80 480 360` | Ch.2   | Vùng cấm                            |
-| `--gaussian-kernel`    | `5`              | Ch.2   | Kernel Gaussian                     |
-| `--brightness`         | `10`             | Ch.2   | Độ sáng (β)                         |
-| `--contrast`           | `1.2`            | Ch.2   | Tương phản (α)                      |
-| `--canny-low`          | `50`             | Ch.3   | Ngưỡng Canny thấp                   |
-| `--canny-high`         | `150`            | Ch.3   | Ngưỡng Canny cao                    |
-| `--threshold`          | `127`            | Ch.4   | Ngưỡng mặt nạ                       |
-| `--confidence`         | `0.5`            | Ch.5   | Tin cậy MediaPipe                   |
-| `--calibration-frames` | `90`             | —      | Số khung học nền trước khi hiện ROI |
-
-### Khảo sát tham số (Parameter Sweep)
+Sử dụng công cụ này để tạo bảng so sánh định lượng phục vụ báo cáo thực nghiệm:
 
 ```bash
-# 3 ngưỡng Canny (Ch.3)
+# Khảo sát 3 mức ngưỡng Canny (Ch.3)
 python parameter_sweep.py --type canny --values 30 50 80
 
-# 3 ngưỡng tin cậy MediaPipe (Ch.5)
-python parameter_sweep.py --type confidence --values 0.3 0.5 0.7
+# Chạy mặc định
+python parameter_sweep.py
 ```
 
-Nhấn **SPACE** để chụp khung hình từ webcam (dữ liệu thực tế). Kết quả lưu tại `sweep_results/`.
+Khi chạy, nhấn `SPACE` để chụp khung hình chuẩn từ webcam làm dữ liệu thực nghiệm. Kết quả sẽ được lưu tại thư mục `sweep_results/`.
 
 ---
 
-## Cấu trúc project
+## 4. Kết quả và Giải thích hiển thị
+
+Hệ thống hiển thị 4 cửa sổ song song để minh chứng quá trình biến đổi của pipeline:
+
+1. **Ảnh sau lọc nhiễu (Ch.2):** Kết quả của toán tử điểm và lọc Gaussian giúp mịn ảnh.
+2. **Canny + Hough (Ch.3):** Biên Canny (xanh lá) và các đoạn thẳng Hough Lines (đỏ).
+3. **Mặt nạ phân đoạn (Ch.4):** Vùng chuyển động màu trắng và contour bao quanh màu xanh.
+4. **Kết quả cuối (Ch.5):** Khung xương MediaPipe màu cam/vàng. Khung ROI sẽ chuyển từ **Xanh (An toàn)** sang **Đỏ (Cảnh báo)** nếu có ≥ 3 điểm mốc xâm nhập.
+
+---
+
+## 5. Cấu trúc Project
 
 ```
-CUOIKI/
-├── main.py                 # Pipeline Ch.2-5 + webcam
-├── download_model.py       # Tải model Pose Landmarker (lần đầu)
-├── parameter_sweep.py      # Khảo sát tham số Canny / Confidence
-├── models/                 # Model .task (tự tạo khi chạy lần đầu)
-├── requirements.txt
-├── README.md
-├── MUC_TIEU_BAO_CAO.md     # Phát biểu mục tiêu (dán vào báo cáo)
-├── output/                 # Ảnh lưu khi nhấn 's'
-└── sweep_results/          # Kết quả parameter sweep
+.
+├── main.py              # Pipeline giám sát và logic cảnh báo chính
+├── parameter_sweep.py   # Script khảo sát tham số định lượng
+├── download_model.py    # Script quản lý và tải model Pose Landmarker
+├── output/               # Thư mục chứa các ảnh snapshot lưu trong quá trình chạy
+└── sweep_results/        # Thư mục chứa kết quả so sánh tham số
 ```
 
 ---
 
-## Hướng dẫn thực nghiệm
-
-1. **Dữ liệu thực tế:** Dùng webcam và bối cảnh phòng của bạn — không dùng ảnh mẫu mạng.
-2. **Học nền:** Chương trình tự đếm 90 khung hình học nền — **đứng yên**, ROI chưa hiện trong giai đoạn này.
-3. **ROI:** Chỉnh `--roi` sao cho vùng cấm khớp không gian cần giám sát (cửa, lối đi...).
-4. **Khung xương:** Đứng đủ thân trong tầm nhìn camera; MediaPipe cần thấy ≥ nửa cơ thể.
-5. **Báo cáo:** Nhấn `s` lưu 4 ảnh trung gian; chạy `parameter_sweep.py` để có bảng so sánh.
-
----
-
-## Giải thích hiển thị
-
-- **Cửa sổ 1:** Ảnh sau toán tử điểm + Gaussian (Ch.2)
-- **Cửa sổ 2:** Biên Canny (xanh lá) + đường Hough (đỏ) — mép cửa, vạch sàn (Ch.3)
-- **Cửa sổ 3:** Mặt nạ chuyển động + contour xanh (Ch.4)
-- **Cửa sổ 4:** Khung xương MediaPipe (cam/vàng) + ROI xanh/đỏ + cảnh báo (Ch.5)
-
----
-
-## Hiệu chỉnh tham số
-
-- **Sử dụng phím số**
-  - 1 - Hiệu chỉnh Gaussian
-  - 2 - Canny Low
-  - 3 - Canny High
-  - 4 - Confidence
-- **Tăng Giảm tham số**
-  - '-' : Tăng giá trị tham số
-  - '+' : Giảm giá trị tham số
-
----
-
-## Tác giả
-
-Bài tập lớn Đại học — Học phần Thị giác máy tính.
+_Báo cáo và mã nguồn được thực hiện bởi nhóm sinh viên lớp Xử lý hình ảnh và thị giác máy tính - UTH._
